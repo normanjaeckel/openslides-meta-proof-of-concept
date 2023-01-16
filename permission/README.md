@@ -12,7 +12,13 @@ Maybe there is another way?
 
 ## Definitions
 
-**Int**, **String**, **Bool**, **Set**, **Map**: Basic data types.
+**Bool**, **Set**, **Map**: Basic data types.
+
+**UserID**: Numeric id of an user.
+
+**ObjectID**: Numeric id of an object like a motion or an agenda item.
+
+**MeetingID**: Numeric id of a meeting.
 
 **FQField**: Full-qualified-field identifies a specific field of a specific
 model in OpenSlides (regular expression:
@@ -25,9 +31,33 @@ called as manager/admin with a more extensive payload than if it is called as
 submitter so the caller can retrieve `asManager` or `asSubmitter` or
 `notAllowed` in this case.
 
+**MeetingMenuEntry**: Name of a menu entry like `agenda`, `motions` or
+`settings`.
+
+**OrganizationMenuEntry**: Name a menu entry on the organization view like
+`committees`, `accounts` or `files`
+
 **Data**: A map of all cached data the requesting component has access to. The
 implementation should accept a pointer or reference, so we do not have to copy
 the whole database for each call.
+
+**AccessRecord**: Describes who can see this corresponding field.
+
+The attribute `type` has one of the following values:
+  - `nobody` : Nobody can see this field, not even the superuser.
+  - `authenticated` : All authenticated users (with login) can see this field.
+  - `all` : All user can see this field, even anonymous users.
+  - `levelAndGroups` : The `levelAndGroups` attribute is evaluated.
+
+The attribute `levelAndGroups` is a structure with three attributes. Users who fulfill one of them can see the field.
+
+  - `organizationManagementLevel` : One single value. If this is not empty,
+    users with this organization management level or higher can see the field.
+  - `committeeManagementLevel` : Map of values for some committee ids For every
+    given committee, users with this level or higher can see the field.
+  - `groups` : Set of group ids. Users in this group can see the field.
+  - `userIds` : Some special cases for motion submitters, personal notes and
+    email addresses. TODO
 
 
 ## Interfaces
@@ -37,10 +67,16 @@ in case of invalid input (invalid data, non existing user, non existing action
 etc.).
 
 
+### Who can see
+
+    whoCanSee = (Set FQField) Data -> Map FQField AccessRecord
+
+TODO ...
+
+
 ### Can see
 
-    canSee = (userIDs : Set Int) (fqFields : Set FQField) (data : Data)
-        -> Map Int (Set FQField)
+    canSee = (Set UserID) (Set FQField) Data -> Map UserID (Set FQField)
 
 Retrieve a map of requested user IDs to the requested FQFields the respective
 user is able to see. We maybe add some syntactic suger interfaces to accept only
@@ -48,22 +84,21 @@ one single user or one single FQField or get a boolean as result (e. g.
 `canSeeSingle`).
 
 
-### Who can see
 
-Retrieve a map of all user IDs to the requested FQFields the respective user is
+
+<!-- Retrieve a map of all user IDs to the requested FQFields the respective user is
 able to see.
 
     whoCanSee = (fqFields : Set FQField) (data : Data)
         -> Map Int (Set FQField)
 
 For better performance this interface might be implemented in another way than
-just retrieving all users and calling `canSee` with them.
+just retrieving all users and calling `canSee` with them. -->
 
 
 ### Can perform
 
-    canPerform = (userID : Int) (action : Action) (data : Data)
-        -> Bool
+    canPerform = UserID Action Data -> Bool
 
 Return true if the user is able to perfom this action regardless of the payload
 it sends.
@@ -71,8 +106,7 @@ it sends.
 
 ### Which Variant
 
-    whichVariant = (userID : Int) (action : Action) (objectID : Int) (data : Data)
-        -> ActionVariant
+    whichVariant = UserID Action ObjectID Data -> ActionVariant
 
 Returns an action variant (e. g. for `motion.update` it might be
 `asManager`,`asSubmitter` or `notAllowed`). If this is called for an action that
@@ -85,11 +119,9 @@ Everything else is retrieved from the dataset.*
 
 ### Meeting tab
 
-    meetingTab = (userID : Int) (entry : String) (meetingID : Int) (data : Data)
-       -> Bool
+    meetingTab = UserID MeetingID Data -> Set MeetingMenuEntry
 
-Returns true if the user has access to the motion tab, the agenda tab etc. and
-its corresponding entry in the main menu in the given meeting.
+Returns the main menu entries and tabs of a meeting the user has access to.
 
 *Question: This interface is really client specific, so let's discuss if we
 should nevertheless implement it here.*
@@ -97,11 +129,10 @@ should nevertheless implement it here.*
 
 ### Organization tab
 
-    organizationTab = (userID : Int) (entry : String) (data : Data)
-       -> Bool
+    organizationTab = UserID Data -> Set OrganizationMenuEntry
 
-Returns true if the user has access to the respective tab and its corresponding
-entry in the main menu on the organization view.
+Returns the main menu entries and tabs on the organization view the user has
+access to.
 
 *Question: This interface is really client specific, so let's discuss if we
 should nevertheless implement it here.*
